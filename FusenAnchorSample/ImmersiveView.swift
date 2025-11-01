@@ -14,7 +14,7 @@ struct ImmersiveView: View {
     @State private var sceneReconstruction = SceneReconstructionProvider()
     @State private var meshEntities: [UUID: Entity] = [:]
     @State private var meshUpdatesTask: Task<Void, Never>?
-    @State private var fusenRoot = AnchorEntity(world: .zero)
+    @State private var fusenRoot = Entity()
     @State private var meshRoot = Entity()
 
     var body: some View {
@@ -109,15 +109,17 @@ struct ImmersiveView: View {
     private func handleTap(_ value: EntityTargetValue<SpatialTapGesture.Value>) {
         guard meshEntities.values.contains(where: { $0 === value.entity }) else { return }
 
-        let positionInAnchor = value.convert(value.location3D, from: .local, to: fusenRoot)
+        let worldPosition = value.convert(value.location3D, from: .local, to: .scene)
+        let anchor = AnchorEntity(world: worldPosition)
         let sphere = ModelEntity(
             mesh: .generateSphere(radius: 0.05),
             materials: [SimpleMaterial(color: .blue, isMetallic: false)]
         )
-        sphere.position = positionInAnchor
+        sphere.position = .zero
         sphere.generateCollisionShapes(recursive: true)
         sphere.components.set(InputTargetComponent())
-        fusenRoot.addChild(sphere)
+        anchor.addChild(sphere)
+        fusenRoot.addChild(anchor)
     }
 }
 
