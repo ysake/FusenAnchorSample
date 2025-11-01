@@ -14,17 +14,17 @@ struct ImmersiveView: View {
     @State private var sceneReconstruction = SceneReconstructionProvider()
     @State private var meshEntities: [UUID: Entity] = [:]
     @State private var meshUpdatesTask: Task<Void, Never>?
-    @State private var rootAnchor = Entity()
+    @State private var rootEntity = Entity()
     @State private var meshRoot = Entity()
 
     var body: some View {
         RealityView { content in
             if meshRoot.parent == nil {
-                rootAnchor.addChild(meshRoot)
+                rootEntity.addChild(meshRoot)
             }
 
-            if rootAnchor.parent == nil {
-                content.add(rootAnchor)
+            if rootEntity.parent == nil {
+                content.add(rootEntity)
             }
         }
         .task {
@@ -119,7 +119,7 @@ struct ImmersiveView: View {
         sphere.generateCollisionShapes(recursive: true)
         sphere.components.set(InputTargetComponent())
         anchor.addChild(sphere)
-        rootAnchor.addChild(anchor)
+        rootEntity.addChild(anchor)
     }
 }
 
