@@ -16,11 +16,16 @@ struct ImmersiveView: View {
     @State private var meshUpdatesTask: Task<Void, Never>?
     @State private var rootEntity = Entity()
     @State private var meshRoot = Entity()
+    @State private var fusenRoot = AnchorEntity(world: .zero)
 
     var body: some View {
         RealityView { content in
             if meshRoot.parent == nil {
                 rootEntity.addChild(meshRoot)
+            }
+
+            if fusenRoot.parent == nil {
+                rootEntity.addChild(fusenRoot)
             }
 
             if rootEntity.parent == nil {
@@ -40,6 +45,9 @@ struct ImmersiveView: View {
             meshUpdatesTask = nil
             meshEntities.removeAll()
             for child in Array(meshRoot.children) {
+                child.removeFromParent()
+            }
+            for child in Array(fusenRoot.children) {
                 child.removeFromParent()
             }
         }
@@ -109,17 +117,18 @@ struct ImmersiveView: View {
     private func handleTap(_ value: EntityTargetValue<SpatialTapGesture.Value>) {
         guard meshEntities.values.contains(where: { $0 === value.entity }) else { return }
 
+        // SpatialTapGesture(coordinateSpace3D: .worldReference) と指定すると、以下の座標変換を省略できそう。
         let worldPosition = value.convert(value.location3D, from: .local, to: .scene)
-        let anchor = AnchorEntity(world: worldPosition)
+        
         let sphere = ModelEntity(
             mesh: .generateSphere(radius: 0.05),
             materials: [SimpleMaterial(color: .blue, isMetallic: false)]
         )
-        sphere.position = .zero
         sphere.generateCollisionShapes(recursive: true)
         sphere.components.set(InputTargetComponent())
-        anchor.addChild(sphere)
-        rootEntity.addChild(anchor)
+        fusenRoot.addChild(sphere)
+
+        sphere.setPosition(worldPosition, relativeTo: nil) // ワールド座標系でポジションを指定する
     }
 }
 
