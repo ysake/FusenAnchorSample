@@ -16,7 +16,7 @@ struct ImmersiveView: View {
     @State private var meshUpdatesTask: Task<Void, Never>?
     @State private var rootEntity = Entity()
     @State private var meshRoot = Entity()
-    @State private var fusenRoot = AnchorEntity(world: .zero)
+    @State private var fusenRoot = Entity()
 
     var body: some View {
         RealityView { content in
