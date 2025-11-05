@@ -13,7 +13,6 @@ struct ImmersiveView: View {
     @State private var session = ARKitSession()
     @State private var sceneReconstruction = SceneReconstructionProvider()
     @State private var meshEntities: [UUID: Entity] = [:]
-    @State private var meshUpdatesTask: Task<Void, Never>?
     @State private var rootEntity = Entity()
     @State private var meshRoot = Entity()
     @State private var fusenRoot = Entity()
@@ -41,8 +40,6 @@ struct ImmersiveView: View {
                 .onEnded { handleTap($0) }
         )
         .onDisappear {
-            meshUpdatesTask?.cancel()
-            meshUpdatesTask = nil
             meshEntities.removeAll()
             for child in Array(meshRoot.children) {
                 child.removeFromParent()
@@ -55,8 +52,6 @@ struct ImmersiveView: View {
 
     @MainActor
     private func startSceneReconstructionIfNeeded() async {
-        guard meshUpdatesTask == nil else { return }
-
         guard SceneReconstructionProvider.isSupported else {
             print("SceneReconstructionProvider is not supported on this device.")
             return
@@ -64,7 +59,7 @@ struct ImmersiveView: View {
 
         do {
             try await session.run([sceneReconstruction])
-            meshUpdatesTask = Task { @MainActor in
+            Task {
                 await listenForMeshUpdates()
             }
         } catch {
@@ -74,9 +69,6 @@ struct ImmersiveView: View {
 
     @MainActor
     private func listenForMeshUpdates() async {
-        defer {
-            meshUpdatesTask = nil
-        }
         for await update in sceneReconstruction.anchorUpdates {
             if Task.isCancelled { break }
             await processMeshAnchorUpdate(update)
