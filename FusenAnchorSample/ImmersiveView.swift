@@ -16,7 +16,7 @@ struct ImmersiveView: View {
     @State private var meshUpdatesTask: Task<Void, Never>?
     @State private var rootEntity = Entity()
     @State private var meshRoot = Entity()
-    @State private var fusenRoot = AnchorEntity(world: .zero)
+    @State private var fusenRoot = AnchorEntity(.world(transform: matrix_identity_float4x4))
 
     var body: some View {
         RealityView { content in
@@ -34,6 +34,10 @@ struct ImmersiveView: View {
         }
         .task {
             await startSceneReconstructionIfNeeded()
+
+            let configuration = SpatialTrackingSession.Configuration(tracking: [.world])
+            let session = SpatialTrackingSession()
+            await session.run(configuration)
         }
         .gesture(
             SpatialTapGesture()
