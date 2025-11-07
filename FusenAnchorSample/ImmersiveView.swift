@@ -16,6 +16,9 @@ struct ImmersiveView: View {
     @State private var rootEntity = Entity()
     @State private var meshRoot = Entity()
     @State private var fusenRoot = Entity()
+    @State private var worldTracking = WorldTrackingProvider()
+    @State private var fusenWorldAnchor: WorldAnchor?
+    @State private var fusenWorldAnchorID: UUID?
 
     var body: some View {
         RealityView { content in
@@ -32,36 +35,43 @@ struct ImmersiveView: View {
             }
         }
         .task {
-            await startSceneReconstructionIfNeeded()
+            await startSession()
         }
         .gesture(
             SpatialTapGesture()
                 .targetedToAnyEntity()
                 .onEnded { handleTap($0) }
         )
-        .onDisappear {
-            meshEntities.removeAll()
-            for child in Array(meshRoot.children) {
-                child.removeFromParent()
-            }
-            for child in Array(fusenRoot.children) {
-                child.removeFromParent()
-            }
-        }
     }
 
     @MainActor
-    private func startSceneReconstructionIfNeeded() async {
+    private func startSession() async {
         guard SceneReconstructionProvider.isSupported else {
             print("SceneReconstructionProvider is not supported on this device.")
             return
         }
 
+        guard WorldTrackingProvider.isSupported else {
+            print("WorldTrackingProvider is not supported on this device.")
+            return
+        }
+
+        let authorizationResults = await session.requestAuthorization(for: [.worldSensing])
+        if authorizationResults.contains(where: { $0.value != .allowed }) {
+            print("Required ARKit authorizations were not granted: \(authorizationResults)")
+            return
+        }
+
         do {
-            try await session.run([sceneReconstruction])
+            try await session.run([sceneReconstruction, worldTracking])
             Task {
                 await listenForMeshUpdates()
             }
+            Task {
+                await listenForWorldAnchorUpdates()
+            }
+            try? await Task.sleep(for: .seconds(2))
+            await ensureFusenWorldAnchor()
         } catch {
             print("Failed to start ARKit session: \(error)")
         }
@@ -102,6 +112,37 @@ struct ImmersiveView: View {
         case .removed:
             guard let meshEntity = meshEntities.removeValue(forKey: meshAnchor.id) else { return }
             meshEntity.removeFromParent()
+        }
+    }
+
+    @MainActor
+    private func listenForWorldAnchorUpdates() async {
+        for await update in worldTracking.anchorUpdates {
+            if Task.isCancelled { break }
+            guard let anchorID = fusenWorldAnchorID, update.anchor.id == anchorID else { continue }
+
+            let anchor = update.anchor
+            switch update.event {
+            case .added, .updated:
+                fusenWorldAnchor = anchor
+                fusenRoot.transform = Transform(matrix: anchor.originFromAnchorTransform)
+            case .removed:
+                fusenWorldAnchor = nil
+            }
+        }
+    }
+
+    @MainActor
+    private func ensureFusenWorldAnchor() async {
+        guard fusenWorldAnchorID == nil else { return }
+        let anchor = WorldAnchor(originFromAnchorTransform: matrix_identity_float4x4)
+
+        do {
+            try await worldTracking.addAnchor(anchor)
+            fusenWorldAnchor = anchor
+            fusenWorldAnchorID = anchor.id
+        } catch {
+            print("Failed to add fusen world anchor: \(error)")
         }
     }
 
